@@ -88,7 +88,6 @@ const checkIsRoot = (partText, rootText) => {
 
 // --- 主程式元件 ---
 export default function App() {
-  // 1. 所有 Hooks (狀態管理) 必須放在最上方
   const [view, setView] = useState('home');
   const [gameData, setGameData] = useState(SEED_DATA);
   const [user, setUser] = useState(null);
@@ -109,7 +108,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  // 2. Firebase Auth & Data Loading Effects
+  // Auth & Load
   useEffect(() => {
     if (!isConfigValid || !auth) return;
     const initAuth = async () => {
@@ -136,7 +135,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('rootMasterUserStats_v1', JSON.stringify({ favorites, mistakes })); }, [favorites, mistakes]);
   useEffect(() => { if (gameData !== SEED_DATA) localStorage.setItem('rootMasterData_v3', JSON.stringify(gameData)); }, [gameData]);
 
-  // 3. Check Shared Link Logic
+  // Check Shared Link
   useEffect(() => {
     if (!user || !db) return;
     const checkForShareLink = async () => {
@@ -163,7 +162,6 @@ export default function App() {
     checkForShareLink();
   }, [user]);
 
-  // 4. Helper Functions
   const speak = (text) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -174,6 +172,7 @@ export default function App() {
     }
   };
 
+  // Logic
   const handleMergeData = (newData) => {
       if (!Array.isArray(newData)) return;
       const normalized = newData.map((root, rIdx) => ({
@@ -199,11 +198,26 @@ export default function App() {
   };
 
   const startQuiz = (mode) => {
-      const allQ = gameData.flatMap(root => root.questions.map(q => ({...q, rootId: root.id, rootName: root.root, rootMeaning: root.rootMeaning})));
+      // 1. 準備題目
+      const allQuestions = gameData.flatMap(root => 
+          root.questions.map(q => ({
+              ...q,
+              rootId: root.id,
+              rootName: root.root,
+              rootMeaning: root.rootMeaning,
+              // 🌟 關鍵修改：在這裡打亂每個題目的選項
+              options: [...q.options].sort(() => Math.random() - 0.5) 
+          }))
+      );
+
       let queue = [];
-      if (mode === 'standard') queue = allQ;
-      else if (mode === 'random') queue = [...allQ].sort(() => Math.random() - 0.5);
-      else if (mode === 'mistakes') queue = allQ.filter(q => mistakes.includes(q.id));
+      if (mode === 'standard') {
+          queue = allQuestions; // 題目依序，但選項已隨機
+      } else if (mode === 'random') {
+          queue = [...allQuestions].sort(() => Math.random() - 0.5); // 題目也隨機
+      } else if (mode === 'mistakes') {
+          queue = allQuestions.filter(q => mistakes.includes(q.id));
+      }
 
       if (queue.length === 0) { alert("沒有題目可以練習。"); return; }
       
@@ -282,7 +296,7 @@ export default function App() {
     node.remove();
   };
 
-  // 5. 子畫面元件
+  // Components
   const ShareReceiverModal = () => {
       if (!pendingSharedData) return null;
       return (
@@ -505,7 +519,18 @@ export default function App() {
             <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-5 rounded-2xl mb-6 shadow-lg shadow-indigo-200 transform scale-110 mt-4">
                 {getIconForWord(q.word, q.explanation)}
             </div>
-            <h2 className="text-4xl font-black text-slate-800 mb-3 text-center">{q.word}</h2>
+            
+            {/* 🌟 修正：新增發音按鈕與單字並排 */}
+            <div className="flex items-center justify-center gap-3 mb-3">
+                <h2 className="text-4xl font-black text-slate-800 text-center">{q.word}</h2>
+                <button 
+                    onClick={() => speak(q.word)} 
+                    className="p-2 bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-200 transition-colors"
+                >
+                    <Volume2 size={24} />
+                </button>
+            </div>
+
             <div className="flex flex-wrap justify-center gap-2 mb-8">
                 {q.parts.map((p,i) => (
                     <span key={i} className={`px-3 py-1 rounded-lg text-sm font-bold border ${checkIsRoot(p.p, q.rootName||'') ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}>
